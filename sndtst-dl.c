@@ -51,6 +51,7 @@ void parseSystemNode(TidyDoc doc, TidyNode tnod, char* sndtstdir);
 int getSystemPage(char *systemurl, int numgames, char* systemdir);
 void parseSystemLink(TidyDoc doc, TidyNode tnod, char* systemdir);
 int getGamePage(char *gameurl, char *gamename, char* gamedir);
+int getSong(char *songurl, char* gamedir, char *songname);
     
 void parseIndexNode(TidyDoc doc, TidyNode tnod)
 {
@@ -164,6 +165,9 @@ void parseSystemLink(TidyDoc doc, TidyNode tnod, char *systemdir)
                             strcpy(gamedir, systemdir);
                             strcat(gamedir, "/");
                             strcat(gamedir, namebuf.bp);
+
+                            gamedir[strcspn(gamedir, "\n")] = 0;
+
 
                             //create dir
                             struct stat st = {0};
@@ -291,7 +295,7 @@ void parseSystemNode(TidyDoc doc, TidyNode tnod, char* sndtstdir)
                     strcpy(systemdir, sndtstdir);
                     strcat(systemdir, "/");
                     strcat(systemdir, (char *)buf.bp);
-                    systemdir[strcspn(systemdir, "\n")] = 0;                    
+                    systemdir[strcspn(systemdir, "\n")] = 0;
 
                     if (stat(systemdir, &st) == -1) {
                         mkdir(systemdir, 0700);
@@ -337,9 +341,11 @@ void parseSystemNode(TidyDoc doc, TidyNode tnod, char* sndtstdir)
 
 
     
-void parseGamePage(TidyDoc doc, TidyNode tnod, char* gamedir)
+void parseGamePage(TidyDoc doc, TidyNode tnod, char* gamedir, int *gamenum)
 {    
     TidyNode child;
+
+
     for(child = tidyGetChild(tnod); child; child = tidyGetNext(child) ) {
         ctmbstr name = tidyNodeGetName(child);
         if(name) {
@@ -347,8 +353,10 @@ void parseGamePage(TidyDoc doc, TidyNode tnod, char* gamedir)
             TidyAttr attr;
 
             /* walk the attribute list looking for the systems*/
+
             for(attr = tidyAttrFirst(child); attr; attr = tidyAttrNext(attr) ) {
                 if(tidyAttrValue(attr)) {
+
                     if(strcmp("og:image", tidyAttrValue(attr))==0) {
                         //if got the og:image, the next attr should be the link
                         attr = tidyAttrNext(attr);
@@ -375,7 +383,7 @@ void parseGamePage(TidyDoc doc, TidyNode tnod, char* gamedir)
                                     char *titlestr = gametitle + (gametitlestrlen - basetitlelen);
 
                                     if(strcmp(basetitleend, titlestr) == 0) {
-                                        printf("game image url ends in /title\n");
+                                        
                                         // numstr = gametitle+strlen(basegameurl)
                                         //num numlen = gametitle - 
                                         //          (strlen(basegameurl) +
@@ -388,10 +396,18 @@ void parseGamePage(TidyDoc doc, TidyNode tnod, char* gamedir)
                                         strcpy(numstr, numstrptr);
                                         numstr[numlen] = '\0';
                                         printf("game num: '%s'\n", numstr);
+                                        printf(numstr);
+                                        *gamenum = strtol(numstr, NULL, 10);
+                                        printf("gamenum: %i\n", *gamenum);
 
                                         //convert str num to actual int
 
                                         //save title as cover in the dir
+                                        getTitlePic(gametitle, gamedir);
+
+                                        //get each game url, name
+
+                                        //copy getTitlePic, change for the audio file
                                     }
                                     else {
                                         printf("basetitleend '%s' not match titlestr '%s'\n",
@@ -417,6 +433,77 @@ void parseGamePage(TidyDoc doc, TidyNode tnod, char* gamedir)
                         }
                         //parseSystemLink(doc, child, systemdir);
                     }
+                    else if(strcmp("col-md-9", tidyAttrValue(attr))==0) {
+                        printf("found game audio%s: %d\n", *gamenum>0?": game num found":": game num not found", *gamenum);
+
+                                      
+                        //have the div, get all nex
+                        ctmbstr gamename = tidyNodeGetName(child);
+                        printf("should be game div: %s\n", gamename);
+                        TidyNode gamechild = tidyGetChild(child);//button
+                        gamename = tidyNodeGetName(gamechild);
+                        printf("should be game button: %s\n", gamename);
+
+                        gamechild = tidyGetNext(gamechild);//h2
+                        gamechild = tidyGetNext(gamechild);//ol
+                        
+                        gamename = tidyNodeGetName(gamechild);
+                        printf("should be game ol: %s\n", gamename);
+                        
+                        gamechild = tidyGetChild(gamechild);//now an li with song data
+
+                        for(; gamechild; gamechild = tidyGetNext(gamechild)){
+                            gamename = tidyNodeGetName(gamechild);
+
+                            TidyAttr songattr = tidyAttrFirst(gamechild);
+                            char songfile[200];
+                            strcpy(songfile, tidyAttrValue(songattr));
+                            char songname[200];
+                            songattr = tidyAttrNext(songattr);
+                            strcpy(songname, tidyAttrValue(songattr));
+                            printf("\t\t song file:%s, song name:%s\n", songfile, songname);
+//https://s3-us-west-2.amazonaws.com/media.sndtst.com/game/249/song/249-27ee5769a4533a2fOg4ef2f680Og14952a807c4OgLQ7bfb.ogg
+
+                            char songurl[300];
+                            char gamenumstr[100];
+                            sprintf(gamenumstr,"%d",*gamenum);
+                            strcpy(songurl,
+                                   "https://s3-us-west-2.amazonaws.com/media.sndtst.com/game/");
+                            strcat(songurl, gamenumstr);
+                            strcat(songurl, "/song/");
+                            strcat(songurl, songfile);
+                            strcat(songurl, ".ogg");
+
+                            printf("song url:\n%s\n", songurl);
+
+                            printf("game dir: %s\n", gamedir);
+
+                            getSong(songurl, gamedir, songname);
+                            
+#if 0
+TidyAttr attr;
+
+
+
+  for(attr = tidyAttrFirst(child); attr; attr = tidyAttrNext(attr) ) {
+  if(tidyAttrValue(attr)) {
+
+  if(strcmp("og:image", tidyAttrValue(attr))==0) {
+  //if got the og:image, the next attr should be the link
+  attr = tidyAttrNext(attr);
+  if(tidyAttrValue(attr)) {
+  printf("game image url: %s\n", tidyAttrValue(attr));
+
+#endif
+                            
+
+
+
+
+                            
+                        }
+  
+                    }
                 }
 
                 //url looks like this
@@ -424,7 +511,7 @@ void parseGamePage(TidyDoc doc, TidyNode tnod, char* gamedir)
             }
         } //only care about named nodes, not content here because looking for the systems
         
-        parseGamePage(doc, child, gamedir);
+        parseGamePage(doc, child, gamedir, gamenum);
     }
 }
 
@@ -594,7 +681,8 @@ int getGamePage(char *gameurl, char *gamename, char* gamedir)
                     //download all the mp3s
                     //parseSystemPage(gametdoc, tidyGetRoot(gametdoc)); /* walk the tree */
                     //fprintf(stderr, "%s\n", systemtidy_errbuf.bp); /* show errors */
-                    parseGamePage(gametdoc, tidyGetRoot(gametdoc), gamedir); /* walk the tree */
+                    int thisgamenum = 0;
+                    parseGamePage(gametdoc, tidyGetRoot(gametdoc), gamedir, &thisgamenum); /* walk the tree */
                 }
             }
         }
@@ -632,57 +720,101 @@ int getGamePage(char *gameurl, char *gamename, char* gamedir)
  
 int getTitlePic(char *gametitlepicurl, char* gamedir)
 {
-
     CURL *gametitlecurl;
     char gametitlecurl_errbuf[CURL_ERROR_SIZE];
-    TidyDoc gametitletdoc;
-    TidyBuffer gametitledocbuf = {0};
-    TidyBuffer gametitletidy_errbuf = {0};
+
     int gametitleerr;
  
     gametitlecurl = curl_easy_init();
-    curl_easy_setopt(gametitlecurl, CURLOPT_URL, gametitleurl);
+    curl_easy_setopt(gametitlecurl, CURLOPT_URL, gametitlepicurl);
     curl_easy_setopt(gametitlecurl, CURLOPT_ERRORBUFFER, gametitlecurl_errbuf);
     curl_easy_setopt(gametitlecurl, CURLOPT_NOPROGRESS, 0L);
     curl_easy_setopt(gametitlecurl, CURLOPT_VERBOSE, 1L);
-    curl_easy_setopt(gametitlecurl, CURLOPT_WRITEFUNCTION, write_titlegamecb);
+//    curl_easy_setopt(gametitlecurl, CURLOPT_WRITEFUNCTION, write_titlegamecb);
+
+    char coverpath[100];
+    strcpy(coverpath, gamedir);
+    strcat(coverpath, "/cover");
+    printf("coverpath: '%s'\n", coverpath);
+    FILE* coverpicfile = fopen( coverpath, "w");
  
-    gametitletdoc = tidyCreate();
-    tidyOptSetBool(gametitletdoc, TidyForceOutput, yes); /* try harder */
-    tidyOptSetInt(gametdoc, TidyWrapLen, 4096);
-    tidySetErrorBuffer(gametdoc, &gametidy_errbuf);
-    tidyBufInit(&gamedocbuf);
- 
-    curl_easy_setopt(gamecurl, CURLOPT_WRITEDATA, &gamedocbuf);
-    gameerr = curl_easy_perform(gamecurl);
-    if(!gameerr) {
-        gameerr = tidyParseBuffer(gametdoc, &gamedocbuf); /* parse the input */
-        if(gameerr >= 0) {
-            gameerr = tidyCleanAndRepair(gametdoc); /* fix any problems */
-            if(gameerr >= 0) {
-                gameerr = tidyRunDiagnostics(gametdoc); /* load tidy error buffer */
-                if(gameerr >= 0) {
-                    //download the album cover
-                    //download all the mp3s
-                    //parseSystemPage(gametdoc, tidyGetRoot(gametdoc)); /* walk the tree */
-                    //fprintf(stderr, "%s\n", systemtidy_errbuf.bp); /* show errors */
-                    parseGamePage(gametdoc, tidyGetRoot(gametdoc), gamedir); /* walk the tree */
-                }
-            }
-        }
+    curl_easy_setopt(gametitlecurl, CURLOPT_WRITEDATA, coverpicfile);
+    
+    gametitleerr = curl_easy_perform(gametitlecurl);
+    if(!gametitleerr) {
+        //should have pic written by writetitlegamecb
     }
     else {
-        fprintf(stderr, "%s\n", gamecurl_errbuf);
+        fprintf(stderr, "%s\n", gametitlecurl_errbuf);
     }
-    
+
     /* clean-up */
-    curl_easy_cleanup(gamecurl);
-    tidyBufFree(&gamedocbuf);
-    tidyBufFree(&gametidy_errbuf);
-    tidyRelease(gametdoc);
-    return gameerr;
- 
+    curl_easy_cleanup(gametitlecurl);
+    fclose(coverpicfile);
+
+    return gametitleerr;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
  
+int getSong(char *songurl, char* gamedir, char *songname)
+{
+    CURL *songcurl;
+    char songcurl_errbuf[CURL_ERROR_SIZE];
 
+    int songerr;
+ 
+    songcurl = curl_easy_init();
+    curl_easy_setopt(songcurl, CURLOPT_URL, songurl);
+    curl_easy_setopt(songcurl, CURLOPT_ERRORBUFFER, songcurl_errbuf);
+    curl_easy_setopt(songcurl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(songcurl, CURLOPT_VERBOSE, 1L);
+
+    char songpath[300];
+    strcpy(songpath, gamedir);
+    strcat(songpath, "/");
+    strcat(songpath, songname);
+    strcat(songpath, ".ogg");
+    printf("songpath: '%s'\n", songpath);
+    FILE* songfile = fopen( songpath, "w");
+ 
+    curl_easy_setopt(songcurl, CURLOPT_WRITEDATA, songfile);
+    
+    songerr = curl_easy_perform(songcurl);
+    if(!songerr) {
+        //should have song written 
+    }
+    else {
+        fprintf(stderr, "%s\n", songcurl_errbuf);
+    }
+
+    /* clean-up */
+    curl_easy_cleanup(songcurl);
+    fclose(songfile);
+
+    return songerr;
 }
