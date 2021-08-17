@@ -28,7 +28,29 @@ uint write_systemcb(char *in, uint size, uint nmemb, TidyBuffer *out)
     return r;
 }
 
+
+uint write_gamecb(char *in, uint size, uint nmemb, TidyBuffer *out)
+{
+    uint r;
+    r = size * nmemb;
+    tidyBufAppend(out, in, r);
+    return r;
+}
+
+
+uint write_titlegamecb(char *in, uint size, uint nmemb, TidyBuffer *out)
+{
+    uint r;
+    r = size * nmemb;
+    tidyBufAppend(out, in, r);
+    return r;
+}
+
+
 void parseSystemNode(TidyDoc doc, TidyNode tnod, char* sndtstdir);
+int getSystemPage(char *systemurl, int numgames, char* systemdir);
+void parseSystemLink(TidyDoc doc, TidyNode tnod, char* systemdir);
+int getGamePage(char *gameurl, char *gamename, char* gamedir);
     
 void parseIndexNode(TidyDoc doc, TidyNode tnod)
 {
@@ -59,6 +81,124 @@ void parseIndexNode(TidyDoc doc, TidyNode tnod)
         parseIndexNode(doc, child);
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+void parseSystemPage(TidyDoc doc, TidyNode tnod, char* systemdir)
+{    
+    TidyNode child;
+    for(child = tidyGetChild(tnod); child; child = tidyGetNext(child) ) {
+        ctmbstr name = tidyNodeGetName(child);
+        if(name) {
+            /* if it has a name, then it's an HTML tag ... */
+            TidyAttr attr;
+
+            /* walk the attribute list looking for the systems*/
+            for(attr = tidyAttrFirst(child); attr; attr = tidyAttrNext(attr) ) {
+                if(tidyAttrValue(attr)) {
+                    if(strcmp("col-md-9", tidyAttrValue(attr))==0) {
+                        parseSystemLink(doc, child, systemdir);
+                    }
+                }
+            }
+        } //only care about named nodes, not content here because looking for the systems
+        
+        parseSystemPage(doc, child, systemdir);
+    }
+}
+
+
+    
+void parseSystemLink(TidyDoc doc, TidyNode tnod, char *systemdir)
+{    
+    TidyNode child;
+    for(child = tidyGetChild(tnod); child; child = tidyGetNext(child) ) {
+        ctmbstr name = tidyNodeGetName(child);
+        if(name) {
+            //each link in the col-md-9 div is a link to a game on this system
+            //get the link and the name
+            //for each make a dir
+            //then go to that link and parse all those games
+            if(strcmp("a", name) == 0) {
+                TidyAttr attr;
+
+                /* walk the attribute list looking for the systems*/
+                for(attr = tidyAttrFirst(child); attr; attr = tidyAttrNext(attr) ) {
+                    if(tidyAttrValue(attr)) {
+                        //att text should be link
+                        
+
+                        //combine this tidyAttrVavlue(attr) with base url for full
+                        //game link
+
+                        //get the child for this node, it's text
+                        //that's the game name
+                        char gameurl[100];
+                        strcpy(gameurl, SNDTST_URL);
+                        strcat(gameurl, tidyAttrValue(attr));
+
+                        TidyNode namechild = tidyGetChild(child);
+
+                        if(namechild) {
+                            TidyBuffer namebuf;
+                            tidyBufInit(&namebuf);
+                            tidyNodeGetText(doc, namechild, &namebuf);
+
+                            //combine systemdir with game name
+                            char gamedir[1000];
+                            
+                            strcpy(gamedir, systemdir);
+                            strcat(gamedir, "/");
+                            strcat(gamedir, namebuf.bp);
+
+                            //create dir
+                            struct stat st = {0};
+
+
+                            if (stat(gamedir, &st) == -1) {
+                                mkdir(gamedir, 0700);
+                            }
+    
+                            
+                            getGamePage(gameurl, namebuf.bp, gamedir);
+                            
+                            tidyBufFree(&namebuf);    
+                        }
+                        else {
+                            printf("no game name child for %s\n", gameurl);
+                        }
+                    }
+                    else {
+                        printf("no game url\n");
+                    }
+                }
+            }
+        } //only care about named nodes, not content here because looking for the systems
+        
+        parseSystemLink(doc, child, systemdir);
+    }
+}
+
+
+
+
+
+
+
 
 
 /* at this point, should be node with each system info */
@@ -182,6 +322,119 @@ void parseSystemNode(TidyDoc doc, TidyNode tnod, char* sndtstdir)
     }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+void parseGamePage(TidyDoc doc, TidyNode tnod, char* gamedir)
+{    
+    TidyNode child;
+    for(child = tidyGetChild(tnod); child; child = tidyGetNext(child) ) {
+        ctmbstr name = tidyNodeGetName(child);
+        if(name) {
+            /* if it has a name, then it's an HTML tag ... */
+            TidyAttr attr;
+
+            /* walk the attribute list looking for the systems*/
+            for(attr = tidyAttrFirst(child); attr; attr = tidyAttrNext(attr) ) {
+                if(tidyAttrValue(attr)) {
+                    if(strcmp("og:image", tidyAttrValue(attr))==0) {
+                        //if got the og:image, the next attr should be the link
+                        attr = tidyAttrNext(attr);
+                        if(tidyAttrValue(attr)) {
+                            printf("game image url: %s\n", tidyAttrValue(attr));
+                            //get game number from image?
+//https://s3-us-west-2.amazonaws.com/media.sndtst.com/game/269/title
+                            //if the start equals the start of that,
+                            //and the end equals the end of that
+                            //extract number
+                            //then if
+
+                            char *basegameurl = "https://s3-us-west-2.amazonaws.com/media.sndtst.com/game/";
+                            char *basetitleend = "/title";
+                            int basetitlelen = strlen(basetitleend);
+                            int gametitlestrlen = strlen(tidyAttrValue(attr));
+                            if(strlen(basegameurl) < gametitlestrlen) {
+                                //then big enough to have a number
+                                
+
+                                if(gametitlestrlen > basetitlelen) {
+                                    //then big enough to have the title
+                                    char *gametitle = tidyAttrValue(attr);
+                                    char *titlestr = gametitle + (gametitlestrlen - basetitlelen);
+
+                                    if(strcmp(basetitleend, titlestr) == 0) {
+                                        printf("game image url ends in /title\n");
+                                        // numstr = gametitle+strlen(basegameurl)
+                                        //num numlen = gametitle - 
+                                        //          (strlen(basegameurl) +
+                                        //          basetitlelen)
+                                        char *numstrptr = gametitle + strlen(basegameurl);
+                                        int numlen = gametitlestrlen -
+                                            (strlen(basegameurl) + basetitlelen);
+
+                                        char numstr[100];
+                                        strcpy(numstr, numstrptr);
+                                        numstr[numlen] = '\0';
+                                        printf("game num: '%s'\n", numstr);
+
+                                        //convert str num to actual int
+
+                                        //save title as cover in the dir
+                                    }
+                                    else {
+                                        printf("basetitleend '%s' not match titlestr '%s'\n",
+                                               basetitleend,
+                                               titlestr);
+                                    }
+                                }
+                                else {
+                                    printf("gametitlestrlen '%s':%d not greater than basetitlelen '%s':%d\n",
+                                           tidyAttrValue(attr),
+                                           gametitlestrlen,
+                                           basetitleend,
+                                           basetitlelen);
+                                }
+                            }
+                            else {
+                                printf("basegame url '%s':%d not smaller than title '%s':%d",
+                                       basegameurl,
+                                       strlen(basegameurl),
+                                       tidyAttrValue(attr),
+                                       gametitlestrlen);
+                            }
+                        }
+                        //parseSystemLink(doc, child, systemdir);
+                    }
+                }
+
+                //url looks like this
+                //https://s3-us-west-2.amazonaws.com/media.sndtst.com/game/269/song/269-506aa9346fb986dcOgLQ33e32277Og14a3c1c1266OgLQ7e5f.ogg
+            }
+        } //only care about named nodes, not content here because looking for the systems
+        
+        parseGamePage(doc, child, gamedir);
+    }
+}
+
+
+
+
+
+
+
+
  
 int main(int argc, char **argv)
 {
@@ -274,8 +527,7 @@ int getSystemPage(char *systemurl, int numgames, char* systemdir)
             if(systemerr >= 0) {
                 systemerr = tidyRunDiagnostics(systemtdoc); /* load tidy error buffer */
                 if(systemerr >= 0) {
-                    printf("processed %s\n", systemurl);
-                    //parseIndexNode(systemtdoc, tidyGetRoot(systemtdoc)); /* walk the tree */
+                    parseSystemPage(systemtdoc, tidyGetRoot(systemtdoc), systemdir); /* walk the tree */
                     //fprintf(stderr, "%s\n", systemtidy_errbuf.bp); /* show errors */
                     
                 }
@@ -283,7 +535,7 @@ int getSystemPage(char *systemurl, int numgames, char* systemdir)
         }
     }
     else {
-        //fprintf(stderr, "%s\n", systemcurl_errbuf);
+        fprintf(stderr, "%s\n", systemcurl_errbuf);
     }
     
     /* clean-up */
@@ -292,6 +544,143 @@ int getSystemPage(char *systemurl, int numgames, char* systemdir)
     tidyBufFree(&systemtidy_errbuf);
     tidyRelease(systemtdoc);
     return systemerr;
+ 
+
+ 
+
+}
+
+
+
+
+
+
+
+
+ 
+int getGamePage(char *gameurl, char *gamename, char* gamedir)
+{
+
+    CURL *gamecurl;
+    char gamecurl_errbuf[CURL_ERROR_SIZE];
+    TidyDoc gametdoc;
+    TidyBuffer gamedocbuf = {0};
+    TidyBuffer gametidy_errbuf = {0};
+    int gameerr;
+ 
+    gamecurl = curl_easy_init();
+    curl_easy_setopt(gamecurl, CURLOPT_URL, gameurl);
+    curl_easy_setopt(gamecurl, CURLOPT_ERRORBUFFER, gamecurl_errbuf);
+    curl_easy_setopt(gamecurl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(gamecurl, CURLOPT_VERBOSE, 1L);
+    curl_easy_setopt(gamecurl, CURLOPT_WRITEFUNCTION, write_gamecb);
+ 
+    gametdoc = tidyCreate();
+    tidyOptSetBool(gametdoc, TidyForceOutput, yes); /* try harder */
+    tidyOptSetInt(gametdoc, TidyWrapLen, 4096);
+    tidySetErrorBuffer(gametdoc, &gametidy_errbuf);
+    tidyBufInit(&gamedocbuf);
+ 
+    curl_easy_setopt(gamecurl, CURLOPT_WRITEDATA, &gamedocbuf);
+    gameerr = curl_easy_perform(gamecurl);
+    if(!gameerr) {
+        gameerr = tidyParseBuffer(gametdoc, &gamedocbuf); /* parse the input */
+        if(gameerr >= 0) {
+            gameerr = tidyCleanAndRepair(gametdoc); /* fix any problems */
+            if(gameerr >= 0) {
+                gameerr = tidyRunDiagnostics(gametdoc); /* load tidy error buffer */
+                if(gameerr >= 0) {
+                    //download the album cover
+                    //download all the mp3s
+                    //parseSystemPage(gametdoc, tidyGetRoot(gametdoc)); /* walk the tree */
+                    //fprintf(stderr, "%s\n", systemtidy_errbuf.bp); /* show errors */
+                    parseGamePage(gametdoc, tidyGetRoot(gametdoc), gamedir); /* walk the tree */
+                }
+            }
+        }
+    }
+    else {
+        fprintf(stderr, "%s\n", gamecurl_errbuf);
+    }
+    
+    /* clean-up */
+    curl_easy_cleanup(gamecurl);
+    tidyBufFree(&gamedocbuf);
+    tidyBufFree(&gametidy_errbuf);
+    tidyRelease(gametdoc);
+    return gameerr;
+ 
+
+ 
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+int getTitlePic(char *gametitlepicurl, char* gamedir)
+{
+
+    CURL *gametitlecurl;
+    char gametitlecurl_errbuf[CURL_ERROR_SIZE];
+    TidyDoc gametitletdoc;
+    TidyBuffer gametitledocbuf = {0};
+    TidyBuffer gametitletidy_errbuf = {0};
+    int gametitleerr;
+ 
+    gametitlecurl = curl_easy_init();
+    curl_easy_setopt(gametitlecurl, CURLOPT_URL, gametitleurl);
+    curl_easy_setopt(gametitlecurl, CURLOPT_ERRORBUFFER, gametitlecurl_errbuf);
+    curl_easy_setopt(gametitlecurl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(gametitlecurl, CURLOPT_VERBOSE, 1L);
+    curl_easy_setopt(gametitlecurl, CURLOPT_WRITEFUNCTION, write_titlegamecb);
+ 
+    gametitletdoc = tidyCreate();
+    tidyOptSetBool(gametitletdoc, TidyForceOutput, yes); /* try harder */
+    tidyOptSetInt(gametdoc, TidyWrapLen, 4096);
+    tidySetErrorBuffer(gametdoc, &gametidy_errbuf);
+    tidyBufInit(&gamedocbuf);
+ 
+    curl_easy_setopt(gamecurl, CURLOPT_WRITEDATA, &gamedocbuf);
+    gameerr = curl_easy_perform(gamecurl);
+    if(!gameerr) {
+        gameerr = tidyParseBuffer(gametdoc, &gamedocbuf); /* parse the input */
+        if(gameerr >= 0) {
+            gameerr = tidyCleanAndRepair(gametdoc); /* fix any problems */
+            if(gameerr >= 0) {
+                gameerr = tidyRunDiagnostics(gametdoc); /* load tidy error buffer */
+                if(gameerr >= 0) {
+                    //download the album cover
+                    //download all the mp3s
+                    //parseSystemPage(gametdoc, tidyGetRoot(gametdoc)); /* walk the tree */
+                    //fprintf(stderr, "%s\n", systemtidy_errbuf.bp); /* show errors */
+                    parseGamePage(gametdoc, tidyGetRoot(gametdoc), gamedir); /* walk the tree */
+                }
+            }
+        }
+    }
+    else {
+        fprintf(stderr, "%s\n", gamecurl_errbuf);
+    }
+    
+    /* clean-up */
+    curl_easy_cleanup(gamecurl);
+    tidyBufFree(&gamedocbuf);
+    tidyBufFree(&gametidy_errbuf);
+    tidyRelease(gametdoc);
+    return gameerr;
  
 
  
