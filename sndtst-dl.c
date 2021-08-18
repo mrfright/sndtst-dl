@@ -480,10 +480,19 @@ void parseGamePage(TidyDoc doc, TidyNode tnod, char* gamedir, int *gamenum)
                             strcat(songurl, songfile);
                             strcat(songurl, ".ogg");
 
-
+                            
 
                             //print song
                             printf("\t\t%s\n", songname);
+
+                            int songnamelen = strlen(songname);
+                            for(int current_c = 0; current_c < songnamelen; current_c++) {
+                                if(songname[current_c] == '/') {
+                                    songname[current_c] = '|';
+                                }
+                            }
+
+                            strcat(songname, songfile);
 
                             getSong(songurl, gamedir, songname);
                             
